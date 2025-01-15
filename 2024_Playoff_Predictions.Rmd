@@ -1,0 +1,1857 @@
+---
+title: "2024 NBA Playoffs Prediction"
+author: "Lina Nguyen"
+date: "`r format(Sys.Date(), '%m/%d/%y')`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r set options, include=FALSE}
+# DO NOT CHANGE THE LINE BELOW 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Data 
+
+```{r load data, message = F, warning = F}
+library(tidyverse)
+# library(DataExplorer)
+library(ggplot2)
+player_data <- read_csv("/Users/linanguyen/Desktop/OKC/Provided Data/player_game_data.csv")
+team_data <- read_csv("/Users/linanguyen/Desktop/OKC/Provided Data/team_game_data.csv")
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# EDA for player_data
+# DataExplorer::create_report(player_data)
+```
+
+```{r, echo=FALSE}
+htmltools::includeHTML("/Users/linanguyen/Desktop/OKC/report_player_data.html")
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# EDA for team_data
+# DataExplorer::create_report(team_data)
+```
+
+```{r, echo=FALSE}
+htmltools::includeHTML("/Users/linanguyen/Desktop/OKC/report_team_data.html")
+```
+
+```{r}
+# View GSW efg and oefg
+# eFG% = (P2M + 1.5*P3M)/(P2A + P3A)
+
+# subset the dataset to get the 2015 regular season for GSW on offense and defense
+GSWO2015 <- subset(team_data, season == 2015 & gametype == 2 & off_team == "GSW")
+GSWD2015 <- subset(team_data, season == 2015 & gametype == 2 & def_team == "GSW")
+
+# calculate eFG%
+GSWOeFG <- sum((GSWO2015$fg2made + 1.5*GSWO2015$fg3made)/(GSWO2015$fgattempted))/nrow(GSWO2015)
+GSWDeFG <- sum((GSWD2015$fg2made + 1.5*GSWD2015$fg3made)/(GSWD2015$fgattempted))/nrow(GSWD2015)
+```
+
+Warriors Offensive in 2015-2016: 56.4% eFG     
+Warriors Defensive in 2015-2016: 47.9% eFG     
+
+```{r}
+szn15 <- subset(team_data, season == 2015 & gametype == 2)
+# exploring eFG further
+# 3pts
+szn15_agg <- aggregate(fg3made ~ off_team, data = szn15, sum)
+
+# Sort the aggregated data by 3 pointers made in descending order
+szn15_agg <- szn15_agg[order(-szn15_agg$fg3made), ]
+
+szn15_agg$off_team <- factor(szn15_agg$off_team, levels = szn15_agg$off_team)
+
+# Create the bar chart
+ggplot(szn15_agg, aes(x = off_team, y = fg3made)) + 
+  geom_bar(stat = 'identity') + 
+  labs(title = "3 Pointers Made in the 2015 Season by Team", x = "Team", y = "3 Pointers Made") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# eFG% = (P2M + 1.5*P3M)/(P2A + P3A)
+# The 2015-2016 GSW were known for their 3 point shooting, and the graphic below shows that they significantly made more 3 point shots than the rest of the league. With the 1.5x for 3 pointers made in the eFG% calculation, it puts them at a higher chance of a higher eFG%. 
+
+# 2pts
+szn15_agg_2 <- aggregate(fg2made ~ off_team, data = szn15, sum)
+
+# Sort the aggregated data by 3 pointers made in descending order
+szn15_agg_2 <- szn15_agg_2[order(-szn15_agg_2$fg2made), ]
+
+# Convert off_team to a factor with levels ordered by fg2made
+szn15_agg_2$off_team <- factor(szn15_agg_2$off_team, levels = szn15_agg_2$off_team)
+
+# Create the bar chart
+ggplot(szn15_agg_2, aes(x = off_team, y = fg2made)) + 
+  geom_bar(stat = 'identity') + 
+  labs(title = "2 Pointers Made in the 2015 Season by Team", x = "Team", y = "3 Pointers Made") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# On the contrary, GSW came up around average on 2 pointers made compared to the rest of the NBA. 
+
+# eFG% for all teams
+efg2015 <- subset(
+  team_data,
+  gametype ==2 & season == 2015, 
+  select = c(season, gametype, off_team, fg2made, fg3made, fgattempted)
+)
+
+efg2015_agg <- efg2015 %>%
+  group_by(off_team) %>%
+  summarise(fg2made = sum(fg2made), fg3made = sum(fg3made), fgattempted = sum(fgattempted))
+
+efg2015_agg$efg <- (efg2015_agg$fg2made + 1.5 * efg2015_agg$fg3made) / efg2015_agg$fgattempted 
+
+
+# Sort the aggregated data by 3 pointers made in descending order
+efg2015_agg <- efg2015_agg[order(-efg2015_agg$efg), ]
+
+# Convert off_team to a factor with levels ordered by fg2made
+efg2015_agg$off_team <- factor(efg2015_agg$off_team, levels = efg2015_agg$off_team)
+
+# Create the bar chart
+ggplot(efg2015_agg, aes(x = off_team, y = efg)) + 
+  geom_bar(stat = 'identity') + 
+  labs(title = "eFG% in the 2015 Season by Team", x = "Team", y = "eFG") +
+  geom_text(aes(label = sprintf("%.2f", efg)), vjust = -0.5, color = "black", size = 3.5, angle = 45) +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# The 2015 GSW's three point game played a huge role in their eFG%, and 0.03% higher than second place SAS. On the other hand, SAS had the second highest eFG% because of their 2 point game. 
+
+```
+
+```{r}
+# There are two rows for every nbagameid, and this will be split up using off_home = 1 or 0. For the data set split by off_home = 1, we will calculate OeFG, and the data set split by off_home = 0, we will calculate Defg. The data sets will then be recombined on nbagameid, and the eFG scores will be compared to determine the number of teams with higher eFG that win their game.  
+
+# subset data to 2014-2023 regular season
+reg14_23 <- subset(
+  team_data[, c("nbagameid", "off_team", "def_team", "off_win", "season", "gametype", "fg2made", "fg3made", "fgattempted", "off_home")], 
+  season >= 2014 & season <= 2023 & gametype == 2
+)
+
+# split reg14_23 into off_home = 1, and off_home = 0
+reg14_23_1 <- subset(
+  reg14_23, 
+  off_home == 1
+)
+
+reg14_23_0 <- subset(
+  reg14_23, 
+  off_home == 0
+)
+
+# calculate efg%. Offense will be the the off_team when off_home = 1 in the merge later
+reg14_23_1$Oefg <- (reg14_23_1$fg2made + 1.5*reg14_23_1$fg3made)/(reg14_23_1$fgattempted)
+reg14_23_0$Defg <- (reg14_23_0$fg2made + 1.5*reg14_23_0$fg3made)/(reg14_23_0$fgattempted)
+
+# combine both dataframes, but only include Defg
+reg14_23_0 <- reg14_23_0 %>%
+  select(nbagameid, Defg)
+
+combined_df <- merge(reg14_23_1, reg14_23_0, by = "nbagameid")
+
+# Drop rows where OeFG and DeFG are equal
+combined_unique <- combined_df %>%
+  filter(Oefg != Defg) %>%
+  select(-season, -gametype, -fg2made, -fg3made, -fgattempted, -off_home)
+
+# find the percentage of times team with higher eFG wins that game
+combined_unique <- combined_unique %>%
+  mutate(higher_efg_W = case_when(
+    Oefg > Defg & off_win == 1 ~ 1, 
+    Oefg > Defg & off_win == 0 ~ 0,
+    Oefg < Defg & off_win == 1 ~ 0,
+    Oefg < Defg & off_win == 0 ~ 1
+  ))
+
+higher_efg_W <- sum(combined_unique$higher_efg_W == 1) / nrow(combined_unique)
+higher_efg_W
+```
+
+Percent time team with higher eFG% wins a game: 81.6%   
+
+```{r}
+# OREB% = reboffensive/reboundchance
+
+# subset data to 2014-2023 regular season
+reb14_23 <- subset(
+  team_data[, c("nbagameid", "off_team", "def_team", "off_win", "season", "reboffensive", "reboundchance", "gametype", "off_home")], 
+  season >= 2014 & season <= 2023 & gametype == 2
+)
+
+# split reg14_23 into off_home = 1, and off_home = 0
+reb14_23_1 <- subset(
+  reb14_23, 
+  off_home == 1
+)
+
+reb14_23_0 <- subset(
+  reb14_23, 
+  off_home == 0
+)
+
+# calculate OREB%. Offense will be the the off_team when off_home = 1 in the merge later
+reb14_23_1$Oreb <- reb14_23_1$reboffensive/reb14_23_1$reboundchance
+reb14_23_0$Dreb <- reb14_23_0$reboffensive/reb14_23_0$reboundchance
+
+# combine both dataframes, but only include Defg
+reb14_23_0 <- reb14_23_0 %>%
+  select(nbagameid, Dreb)
+
+combined_df_reb <- merge(reb14_23_1, reb14_23_0, by = "nbagameid")
+
+# Drop rows where OeFG and DeFG are equal
+combined_unique_reb <- combined_df_reb %>%
+  filter(Oreb != Dreb) %>%
+  select(-season, -gametype, -off_home, -off_team, -def_team, -reboundchance, -nbagameid)
+
+# find the percentage of times team with higher Oreb wins that game
+combined_unique_reb <- combined_unique_reb %>%
+  mutate(higher_Oreb_W = case_when(
+    Oreb > Dreb & off_win == 1 ~ 1, 
+    Oreb > Dreb & off_win == 0 ~ 0,
+    Oreb < Dreb & off_win == 1 ~ 0,
+    Oreb < Dreb & off_win == 0 ~ 1
+  ))
+
+higher_Oreb_W <- sum(combined_unique_reb$higher_Oreb_W == 1) / nrow(combined_unique_reb)
+higher_Oreb_W
+```
+
+
+Percent team with more Oreb wins game: 55.6%  
+
+```{r}
+# subset data by players who have scored at least 25 points per game played in the 2014-2023 regular season. 
+# calculate 
+
+# subset data by season regular 2014-2023 season, players who have scored at least 25 points 
+player25 <- subset(
+  player_data[, c("nbagameid", "nbapersonid", "team", "season", "points", "gametype")], 
+  season >= 2014 & season <= 2023 & gametype == 2 & points >= 25)
+
+# count number of times a player played on that team per season 
+playergamecount <- player25 %>%
+  select(nbagameid, nbapersonid, team, season) %>%
+  group_by(nbapersonid, team, season) %>%
+  summarise(playergamecount = n(), .groups = 'drop')
+
+# count number of games a team has per season
+gamecount <- team_data %>% 
+  filter(season >= 2014 & season <= 2023 & gametype == 2) %>%
+  select(nbagameid, off_team, season)  %>%
+  group_by(off_team, season) %>%
+  summarise(gamecount = n(), .groups = 'drop') %>%
+  rename(team = off_team)
+
+# find percentage of amount of games played by the player per season
+merged_df <- left_join(playergamecount, gamecount, by = c("team", "season"))
+merged_df$playeravail <- merged_df$playergamecount/merged_df$gamecount 
+
+# filter players who played at least 25% of all their games
+avgavail25 <- merged_df %>%
+  filter(playeravail >= 0.25) %>%
+  select(nbapersonid, season, team, playeravail)
+
+# of avgavail25, what percent of games were they available on average?
+# player_data to find merge with avgavail25 on nbapersonid to get missed count
+avgavail25_all_games <- avgavail25 %>%
+  left_join(player_data, by = c("nbapersonid", "season", "team")) %>%
+  select(nbapersonid, season, team, missed, playeravail)
+  
+avgavail25_percent_avail <- sum(avgavail25_all_games$missed == 0)/nrow(avgavail25_all_games)
+```
+
+
+Average Availability vailability for players who play 25% of possible in-season games, and score at least 25 points for 2014-2023: 86.3% of games     
+
+```{r}
+
+# What % of playoff series are won by the team with home court advantage? Give your answer by round. Use playoffs series from the 2014-**2022** seasons. Remember that the 2023 playoffs took place during the 2022 season (i.e. 2022-23 season).
+
+# team_data will be used to find playoff data from 2014-2021 season, where the off_home = 1. 
+# figuring out which games are being played in which round:
+# step 1: group by season, unique off_team, and def_team where the order doesn't matter. Get the date of the first game to represent the date of the games played
+# step 2: group by the season, and unique off_team and def_team combination, sort by the dates, and number the amount of times a team appears in the series in orders by the date
+
+# subset gametype = 4, season = 2014-2021, off_home = 1
+playoff <- subset(
+  team_data[, c("season", "gametype", "nbagameid", "off_win", "off_home", "off_team", "def_team", "gamedate")],
+  season >= 2014 & season <= 2021 & gametype == 4 & off_home == 1 
+)
+
+# create helper columns that organizes the orders of off_team and def_team to create an easier comparison of the data
+playoff1 <- playoff %>%
+  mutate(team_min = pmin(off_team, def_team),
+         team_max = pmax(off_team, def_team))
+
+# add the first gamedate to gbgamecount 
+firstgamedate <- playoff1 %>%
+  select(team_min, team_max, season, gamedate) %>%
+  group_by(team_min, team_max, season) %>%
+  arrange(gamedate) %>%
+  slice(1) %>%
+  ungroup() 
+
+# group by season, sort by gamedate. slice first 8 = round 1, slice 9-12 = round 2, slice 13-14 = round 3, slice 15 = round 4
+playoff_round1 <- firstgamedate %>%
+  group_by(season) %>% 
+  arrange(gamedate) %>%
+  slice(1:8)
+
+playoff_round2 <- firstgamedate %>%
+  group_by(season) %>% 
+  arrange(gamedate) %>%
+  slice(9:12)
+
+playoff_round3 <- firstgamedate %>%
+  group_by(season) %>% 
+  arrange(gamedate) %>%
+  slice(13:14)
+
+playoff_round4 <- firstgamedate %>%
+  group_by(season) %>% 
+  arrange(gamedate) %>%
+  slice(15)
+
+# merge playoff with playoff_round(n) to calculate percent wins at home
+round1 <- playoff_round1 %>%
+  left_join(playoff1, by = c("season", "team_min", "team_max", "gamedate")) %>%
+  select(-off_team, -def_team, -gametype)
+
+
+round1_home_wins <- sum(round1$off_win) / nrow(round1)
+
+round2 <- playoff_round2 %>%
+  left_join(playoff1, by = c("season", "team_min", "team_max", "gamedate")) %>%
+  select(-off_team, -def_team, -gametype)
+
+round2_home_wins <- sum(round2$off_win) / nrow(round2)
+
+round3 <- playoff_round3 %>%
+  left_join(playoff1, by = c("season", "team_min", "team_max", "gamedate")) %>%
+  select(-off_team, -def_team, -gametype)
+
+round3_home_wins <- sum(round3$off_win) / nrow(round3)
+
+round4 <- playoff_round4 %>%
+  left_join(playoff1, by = c("season", "team_min", "team_max", "gamedate")) %>%
+  select(-off_team, -def_team, -gametype)
+
+round4_home_wins <- sum(round4$off_win) / nrow(round4)
+
+round1_home_wins
+round2_home_wins
+round3_home_wins
+round4_home_wins
+```
+
+Home Team Wins for Playoffs:
+
+Round 1: 70.3%   
+Round 2: 59.4%   
+Conference Finals: 62.5%    
+Finals: 87.5%    
+
+```{r}
+# team_data shows 2 rows for every nbagameid. To get net ranking, team_data will be subsetted into off_home = 1, and off_home = 0 to get the offensive and defensive rankings. 
+# net rating = [ORTG]points/(possessions/100) - [DRTG]points allowed/(defensive possessions/ 100)
+# The 2 subsetted data sets will be merged back together to calculate net rankings. Offense and defense teams per game will have equal and opposite net rankings. 
+
+# subset data for regular season, 2014-2021 season, by offense and defense
+off_sub <- subset(
+  team_data,
+  season >= 2014 & season <= 2021 & gametype == 2 & off_home ==1,
+  select = c("season", "nbagameid", "off_team", "possessions", "points", "def_team", "off_home")
+)
+
+def_sub <- subset(
+  team_data,
+  season >= 2014 & season <= 2021 & gametype == 2 & off_home == 0,
+  select = c("season", "nbagameid", "off_team", "possessions", "points", "def_team", "off_home")
+)
+
+# calculate ORTG and DRTG
+off_sub$ORTG <- off_sub$points / (off_sub$possessions / 100)
+def_sub$DRTG <- def_sub$points / (def_sub$possessions / 100)
+
+# merging the datasets
+nr <- off_sub %>%
+  full_join(def_sub, by = "nbagameid") %>%
+  select(season.x, nbagameid, off_team.x, ORTG, def_team.x, DRTG) 
+
+# rename columns
+colnames(nr) <- c("season", "nbagameid", "off_team", "ORTG", "def_team", "DRTG")
+
+# calculate net rankings
+nr$Onet_ranking <- nr$ORTG - nr$DRTG 
+nr$Dnet_ranking <- nr$DRTG - nr$ORTG 
+
+# calculate team season net ranking
+off_nr <- nr %>%
+  group_by(season, off_team) %>%
+  summarise(mean_o_nr = mean(Onet_ranking, na.rm = TRUE), .groups = 'drop') %>%
+  rename(team = off_team)
+
+def_nr <- nr %>%
+  group_by(season, def_team) %>%
+  summarise(mean_d_nr = mean(Dnet_ranking, na.rm = TRUE), .groups = 'drop') %>%
+  rename(team = def_team)
+
+net_ranking <- off_nr %>%
+  full_join(def_nr, by = c("season", "team")) %>%
+  mutate(net_ranking = (mean_o_nr + mean_d_nr) / 2) %>%
+  select(season, team, net_ranking)
+
+# select teams that have a +5 net rating 
+net_5 <- subset(
+  net_ranking,
+  net_ranking >= 5
+)
+
+
+# create dataframe of teams that play in round 2 the following play off year
+
+# subset gametype = 4, season = 2014-2021, off_home = 1
+playoff2 <- subset(
+  team_data[, c("season", "gametype", "nbagameid", "off_win", "off_home", "off_team", "def_team", "gamedate")],
+  season >= 2015 & season <= 2022 & gametype == 4 & off_home == 1 
+)
+
+# create helper columns that organizes the orders of off_team and def_team to create an easier comparison of the data
+playoff3 <- playoff2 %>%
+  mutate(team_min = pmin(off_team, def_team),
+         team_max = pmax(off_team, def_team))
+
+# add the first gamedate to gbgamecount 
+firstgamedate1 <- playoff3 %>%
+  select(team_min, team_max, season, gamedate) %>%
+  group_by(team_min, team_max, season) %>%
+  arrange(gamedate) %>%
+  slice(1) %>%
+  ungroup() 
+
+# group by season, sort by gamedate. slice first 8 = round 1, slice 9-12 = round 2, slice 13-14 = round 3, slice 15 = round 4
+
+Q7_playoff_round2 <- firstgamedate1 %>%
+  group_by(season) %>% 
+  arrange(gamedate) %>%
+  slice(9:12)
+
+# merge playoff with playoff_round(n) to calculate percent wins at home
+Q7_round2 <- Q7_playoff_round2 %>%
+  left_join(playoff3, by = c("season", "team_min", "team_max", "gamedate")) %>%
+  select(-off_team, -def_team, -gametype)
+
+
+# create dataframe of list of teams that played in round 2
+
+Q7_round2_team_min <- Q7_round2 %>% 
+  select(season, team_min) %>%
+  mutate(season = season - 1) %>%
+  rename(team = team_min)
+
+Q7_round2_team_max <- Q7_round2 %>%
+  select(season, team_max) %>%
+  mutate(season = season - 1) %>%
+  rename(team = team_max)
+
+Q7_round2_teams <- rbind(Q7_round2_team_min, Q7_round2_team_max)
+
+# merge net_5 with Q7_round2_teams
+net_5_success <- net_5 %>%
+  inner_join(Q7_round2_teams, by = c("season", "team")) %>%
+  select(season, team, net_ranking)
+
+# calculate percentage of teams that make it to the second round of the playoffs with +5 net ranking in the regular season
+net_5_success_percentage <- nrow(net_5_success) / nrow(net_5)
+
+
+# On teams that have a +5 rating in regular season and make it to the second round of the playoffs, what percentage of their top 5 total minutes played players in the regular season played in the 2nd round play offs?
+# net_5_success will tell us teams with +5 ratings and make it to the second round of play offs
+
+# subset player_data by 2014-2021 regular season, add up total minutes played by player, team, and season, and only keep the top 5 player minutes per team and season
+player_reg <- subset( 
+  player_data,
+  gametype == 2 & season >= 2014 & season <= 2021,
+  select = c("season", "nbapersonid", "team", "seconds", "gametype")
+)
+
+player_reg_seconds <- player_reg %>%
+  group_by(season, team, nbapersonid) %>%
+  summarise(total_seconds = sum(seconds), .groups = 'drop')
+
+top_5_player_reg <- player_reg_seconds %>%
+  group_by(season, team) %>%
+  arrange(desc(total_seconds), .by_group = TRUE) %>%
+  slice(1:5)
+
+# subset player_data by 2014-2021 playoffs
+player_playoffs <- subset(
+  player_data, 
+  gametype == 4 & season >= 2014 & season <= 2021,
+  select = c("season", "nbapersonid", "team", "seconds", "gametype", "nbagameid")
+)
+
+# merge round2 with player_playoffs to find players on each team who were in the playoffs 
+round2_players <- round2 %>%
+  left_join(player_playoffs, by = c("nbagameid", "season")) %>%
+  select(-team_min, -team_max)
+
+# merge round2_players with top_5_player_reg to find if top 5 players are playing in round 2
+top5_round2_players <- top_5_player_reg %>%
+  left_join(round2_players, by =c("nbapersonid", "team", "season")) %>%
+  drop_na()
+
+top5_players_percentage_playoffs <- nrow(top5_round2_players) / nrow(top_5_player_reg)
+
+net_5_success_percentage
+top5_players_percentage_playoffs
+
+```
+
+Percent of +5.0 net rating teams making the 2nd round next year: 63.6%   
+Percent of top 5 minutes played players who played in those 2nd round series: 26.7%   
+
+# Playoffs Modeling             
+
+```{r}
+# NBA Play offs: 16 teams - 8 each from East and West Conferences
+# Teams in each conference ranked by win/loss record from the regular season
+# Top 6 teams from each conference automatically progress to the playoffs
+# 7-10th place teams in each conference play for the remaining four spots in the play in tournament
+
+# play in tournament: 7-10th place teams play each other. 7-8th place play each other and handed the 7th seed, 9-10th place team plays and losing team is eliminated. Loser of the first game plays winner of the second to get the 8th seed. 
+
+# NBA Play offs seed: top 6 is W/L record in regular season
+# if there is a tie, head-to-head record is used to determine which team receives the better seed
+# if there is a tie higher seed goes to a divisional champion
+# if there is a tie, win-loss record against teams in their division
+# if there is a tie, win-loss record percentage against conference teams
+# 7-8th seed is decided by play-in tournament
+
+# NBA Playoffs: best of 7 elimination format
+# first round: 1st v 8th, 2nd vs 7th, 3rd vs 6th, 4th vs. 5th
+# team with better regular-season rewarded with home-court advantage
+# home/away: 2-2-1-1-1
+# teams with a better seed plays games 1,2,5,7 at home
+
+# Part 1: Which teams make it to the playoffs based on their regular season performance
+# we will only look at 2023-2024 season
+# break data into eastern and western conference 
+# team_data: regular season (gametype = 2) used to predict which teams will make it to the top 6 play offs on each conference
+# use probability to predict chances of winning per team and game
+# Find features that play the most significant role in leading a team to the playoffs
+```
+
+```{r}
+# look at team_data 2023-2024 regular season
+
+reg_szn2023 <- team_data %>%
+  filter(
+    season == 2023 & gametype == 2
+  ) %>%
+  mutate(
+    eFG = (fg2made + 1.5 * fg3made) / fgattempted,
+    TORatio = turnovers / possessions,
+    reb_percentage = reboffensive / reboundchance,
+    FTRate = ftmade / fgattempted, 
+    west_conference = case_when(
+      off_team %in% c("OKC", "DEN", "MIN", "LAC", "DAL", "PHX", "LAL", "NOP", "SAC", "GSW", "HOU", "UTA", "MEM", "SAS", "POR") ~ 1,
+      TRUE ~ 0
+    )
+  ) %>%
+  group_by(nbagameid) %>%
+  mutate(win = ifelse(points == max(points), 1, 0)) %>%
+  ungroup() %>%
+  select(nbagameid, off_team, eFG, TORatio, reb_percentage, FTRate, off_home, points, def_team, west_conference, win)
+
+head(reg_szn2023)
+```
+
+```{r}
+# view team wins and rankings to check with the model later
+team_wins <- reg_szn2023 %>%
+  group_by(off_team) %>%
+  summarise(total_wins = sum(win), total_games = n()) %>%
+  ungroup() %>%
+  mutate(
+    rank = case_when(
+      off_team %in% c("BOS", "OKC") ~ 1,
+      off_team %in% c("NYK", "DEN") ~ 2,
+      off_team %in% c("MIL", "MIN") ~ 3, 
+      off_team %in% c("CLE", "LAC") ~ 4, 
+      off_team %in% c("ORL", "DAL") ~ 5,
+      off_team %in% c("IND", "PHX") ~ 6, 
+      off_team %in% c("PHI", "NOP") ~ 7,
+      off_team %in% c("MIA", "LAL") ~ 8,
+      off_team %in% c("CHI", "SAC") ~ 9, 
+      off_team %in% c("ATL", "GSW") ~ 10, 
+      off_team %in% c("BKN", "HOU") ~ 11,
+      off_team %in% c("TOR", "UTA") ~ 12, 
+      off_team %in% c("CHA", "MEM") ~ 13,
+      off_team %in% c("WAS", "SAS") ~ 14,
+      off_team %in% c("DET", "POR") ~ 15
+    )
+  )
+
+head(team_wins)
+```
+
+```{r}
+# view correlation plot to see if we have to address multicollinearity
+library(corrplot)
+corr <- reg_szn2023 %>%
+  select(-off_team, -def_team)
+
+cor_matrix <- cor(corr)
+corrplot(cor_matrix, method = "circle", type = "upper", order = "hclust", 
+         addCoef.col = "black", tl.col = "black", tl.srt = 45, 
+         number.cex = 0.7)
+
+# points will be dropped because it is obviously heavily correlated with eFG
+reg_szn2023 <- reg_szn2023 %>%
+  select(-points, -nbagameid)
+```
+
+```{r}
+# add end of season rankings to the model
+reg_szn2023 <- reg_szn2023 %>%
+  mutate(
+    off_rank = case_when(
+      off_team %in% c("BOS", "OKC") ~ 1,
+      off_team %in% c("NYK", "DEN") ~ 2,
+      off_team %in% c("MIL", "MIN") ~ 3, 
+      off_team %in% c("CLE", "LAC") ~ 4, 
+      off_team %in% c("ORL", "DAL") ~ 5,
+      off_team %in% c("IND", "PHX") ~ 6, 
+      off_team %in% c("PHI", "NOP") ~ 7,
+      off_team %in% c("MIA", "LAL") ~ 8,
+      off_team %in% c("CHI", "SAC") ~ 9, 
+      off_team %in% c("ATL", "GSW") ~ 10, 
+      off_team %in% c("BKN", "HOU") ~ 11,
+      off_team %in% c("TOR", "UTA") ~ 12, 
+      off_team %in% c("CHA", "MEM") ~ 13,
+      off_team %in% c("WAS", "SAS") ~ 14,
+      off_team %in% c("DET", "POR") ~ 15,
+      TRUE ~ NA_real_),
+    def_rank = case_when(def_team %in% c("BOS", "OKC") ~ 1,
+      def_team %in% c("NYK", "DEN") ~ 2,
+      def_team %in% c("MIL", "MIN") ~ 3, 
+      def_team %in% c("CLE", "LAC") ~ 4, 
+      def_team %in% c("ORL", "DAL") ~ 5,
+      def_team %in% c("IND", "PHX") ~ 6, 
+      def_team %in% c("PHI", "NOP") ~ 7,
+      def_team %in% c("MIA", "LAL") ~ 8,
+      def_team %in% c("CHI", "SAC") ~ 9, 
+      def_team %in% c("ATL", "GSW") ~ 10, 
+      def_team %in% c("BKN", "HOU") ~ 11,
+      def_team %in% c("TOR", "UTA") ~ 12, 
+      def_team %in% c("CHA", "MEM") ~ 13,
+      def_team %in% c("WAS", "SAS") ~ 14,
+      def_team %in% c("DET", "POR") ~ 15,
+      TRUE ~ NA_real_)
+)
+```
+
+```{r}
+# view distribution of data
+# data sets give a relatively normal distribution. There is no need to rescale the data to keep the integrity of the effect of the numbers. Other columns are from 0-1 so it's not that much of a difference betwen the other columns. 
+numeric_columns <- sapply(reg_szn2023, is.numeric)
+
+# set margins
+par(mar = c(2,2,2,2))
+par(mfrow = c(3, 3))  
+for (col in names(reg_szn2023)[numeric_columns]) {
+  hist(reg_szn2023[[col]], main = col, xlab = col)
+}
+
+# scale data so ranking doesn't skew the results
+#reg_szn2023$off_rank <- scales::rescale(reg_szn2023$off_rank)
+#reg_szn2023$def_rank <- scales::rescale(reg_szn2023$def_rank)
+```
+
+```{r}
+# split the data into training and testing
+library(caret)
+set.seed(2581)
+split_index <- sample(1:nrow(reg_szn2023), 0.7*nrow(reg_szn2023))
+train <- reg_szn2023[split_index, ]
+test <- reg_szn2023[-split_index, ]
+```
+
+```{r}
+# use h2o automal to retrieve a baseline model
+library(h2o)
+h2o.init()
+```
+
+```{r}
+# convert to h2o objects
+train_h2o <- as.h2o(train)
+test_h2o <- as.h2o(test)
+
+target <- "win"
+features <- setdiff(names(train), target)
+
+# train h2o model
+model <- h2o.automl(
+  x = features,
+  y = target,
+  training_frame = train_h2o, 
+  max_models = 10,
+  seed = 1
+)
+
+best_model <- model@leader
+lb <- model@leaderboard
+print(lb, n = nrow(lb))
+
+# predict the test set 
+predictions <- h2o.predict(best_model, test_h2o)
+
+# convert predictions to a dataframe
+predictions_df <- as.data.frame(predictions)
+
+# view the predictions
+# print(predictions_df)
+binary_predictions <- ifelse(predictions_df$predict >= 0.5, 1, 0)
+
+#h2o.shutdown(prompt = FALSE)
+
+# the best model is the StackedEnsemble_AllModels_1_AutoML_1_20240630_120957, but the performance metrics of the model show that it's not the best. 
+```
+
+```{r}
+# Calculate accuracy, sensitivity, specificity, precision, recall, and F1
+test_predictions <- test 
+test_predictions$predictions <- binary_predictions
+```
+
+```{r}
+# calculate for accuracy
+test_predictions <- test_predictions %>%
+  mutate(cm = case_when(
+    win == 1 & predictions == 1 ~ "TP",
+    win == 0 & predictions == 1 ~ "FP", 
+    win == 1 & predictions == 0 ~ "FN", 
+    win == 0 & predictions == 0 ~ "TN"
+    
+  )
+)
+
+accuracy <- (sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "TN"))/nrow(test_predictions)
+print(paste("Accuracy: ", accuracy))
+
+sensitivity <- (sum(test_predictions$cm == "TP")) / ((sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "FN")))
+print(paste("Sensitivity: ", sensitivity))
+
+specificity <- (sum(test_predictions$cm == "TN")) / (sum(test_predictions$cm == "TN") + sum(test_predictions$cm == "FP"))
+print(paste("Specificity: ", specificity))
+
+precision = sum(test_predictions$cm == "TP") / (sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "FP"))
+print(paste("Precision: ", precision))
+
+recall <- sum(test_predictions$cm == "TP") / (sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "FN"))
+print(paste("Recall: ", recall))
+
+F1 = 2*precision*recall / (precision + recall)
+print(paste("F1: ", F1))
+```
+```{r}
+# check for nba rankings after making predictions
+test_predictions <- test_predictions %>%
+  select(-win, -cm) %>%
+  rename(win = predictions)
+
+# append training and testing set
+check <- rbind(train, test_predictions)
+  
+```
+
+
+```{r}
+# check nba rankings
+
+check_rankings_eastern <- check %>%
+  filter(west_conference == 0) %>%
+  group_by(off_team) %>%
+  summarise(total_wins = sum(win))%>%
+  arrange(desc(total_wins)) 
+  
+
+check_rankings_eastern <- check_rankings_eastern %>%
+  mutate(
+    actual_ranking = case_when(
+      off_team %in% c("BOS", "OKC") ~ 1,
+      off_team %in% c("NYK", "DEN") ~ 2,
+      off_team %in% c("MIL", "MIN") ~ 3,
+      off_team %in% c("CLE", "LAC") ~ 4,
+      off_team %in% c("ORL", "DAL") ~ 5,
+      off_team %in% c("IND", "PHX") ~ 6,
+      off_team %in% c("PHI", "NOP") ~ 7,
+      off_team %in% c("MIA", "LAL") ~ 8,
+      off_team %in% c("CHI", "SAC") ~ 9,
+      off_team %in% c("ATL", "GSW") ~ 10,
+      off_team %in% c("BKN", "HOU") ~ 11,
+      off_team %in% c("TOR", "UTA") ~ 12,
+      off_team %in% c("CHA", "MEM") ~ 13,
+      off_team %in% c("WAS", "SAS") ~ 14,
+      off_team %in% c("DET", "POR") ~ 15
+    )
+  )
+
+print(check_rankings_eastern)
+```
+
+```{r}
+# for the eastern conference, seeds 2-8 are off. 
+check_rankings_western <- check %>%
+  filter(west_conference == 1) %>%
+  group_by(off_team) %>%
+  summarise(total_wins = sum(win)) %>%
+  arrange(desc(total_wins))
+
+check_rankings_western  <- check_rankings_western %>%
+  mutate(
+    actual_ranking = case_when(
+      off_team %in% c("BOS", "OKC") ~ 1,
+      off_team %in% c("NYK", "DEN") ~ 2,
+      off_team %in% c("MIL", "MIN") ~ 3,
+      off_team %in% c("CLE", "LAC") ~ 4,
+      off_team %in% c("ORL", "DAL") ~ 5,
+      off_team %in% c("IND", "PHX") ~ 6,
+      off_team %in% c("PHI", "NOP") ~ 7,
+      off_team %in% c("MIA", "LAL") ~ 8,
+      off_team %in% c("CHI", "SAC") ~ 9,
+      off_team %in% c("ATL", "GSW") ~ 10,
+      off_team %in% c("BKN", "HOU") ~ 11,
+      off_team %in% c("TOR", "UTA") ~ 12,
+      off_team %in% c("CHA", "MEM") ~ 13,
+      off_team %in% c("WAS", "SAS") ~ 14,
+      off_team %in% c("DET", "POR") ~ 15
+    )
+  )
+
+print(check_rankings_western)
+# for the western conference, seeds aren't too far skewed from the normal except for the warriors placing 5th when they're actually 10th which messes up 2-8. 
+# for both the eastern and western conference, the model struggles to classify wins for seeds 2-8. For the eastern conference, seeds 2-8 only have a difference of 4 wins, while for the western conference, there is a difference of 8 wins, which explains why the western conference seeds are a little closer to the actual seeds. 
+```
+
+```{r}
+# model #2: retrain data, but each nbagameid is unique. Ops stats and def stats will be in the same row.
+reg_szn2023_2 <- team_data %>%
+  filter(
+    season == 2023 & gametype == 2
+  ) %>%
+  mutate(
+    eFG = (fg2made + 1.5 * fg3made) / fgattempted,
+    TORatio = turnovers / possessions,
+    reb_percentage = reboffensive / reboundchance,
+    FTRate = ftmade / fgattempted,
+    west_conference = case_when(
+      off_team %in% c("OKC", "DEN", "MIN", "LAC", "DAL", "PHX", "LAL", "NOP", "SAC", "GSW", "HOU", "UTA", "MEM", "SAS", "POR") ~ 1,
+      TRUE ~ 0
+    )
+  ) %>%
+  group_by(nbagameid) %>%
+  mutate(win = ifelse(points == max(points), 1, 0)) %>%
+  ungroup() %>%
+  select(nbagameid, off_team, eFG, TORatio, reb_percentage, FTRate, off_home, points, west_conference, win)
+
+# add end of season rankings to the model
+reg_szn2023_2 <- reg_szn2023_2 %>%
+  mutate(
+    rank = case_when(
+      off_team %in% c("BOS", "OKC") ~ 1,
+      off_team %in% c("NYK", "DEN") ~ 2,
+      off_team %in% c("MIL", "MIN") ~ 3, 
+      off_team %in% c("CLE", "LAC") ~ 4, 
+      off_team %in% c("ORL", "DAL") ~ 5,
+      off_team %in% c("IND", "PHX") ~ 6, 
+      off_team %in% c("PHI", "NOP") ~ 7,
+      off_team %in% c("MIA", "LAL") ~ 8,
+      off_team %in% c("CHI", "SAC") ~ 9, 
+      off_team %in% c("ATL", "GSW") ~ 10, 
+      off_team %in% c("BKN", "HOU") ~ 11,
+      off_team %in% c("TOR", "UTA") ~ 12, 
+      off_team %in% c("CHA", "MEM") ~ 13,
+      off_team %in% c("WAS", "SAS") ~ 14,
+      off_team %in% c("DET", "POR") ~ 15,
+      TRUE ~ NA_real_))
+```
+
+```{r}
+# split data by off_home = 1 and off_home = 0
+off_home <- reg_szn2023_2 %>%
+  filter(off_home == 1)
+
+off_away <- reg_szn2023_2 %>%
+  filter(off_home == 0)
+
+# rename off_home and off_away columns to reflect if the team is on offense or defense
+off_home <- off_home %>%
+  rename(Oefg = eFG, 
+         OTORatio = TORatio, 
+         O_reb_perc = reb_percentage, 
+         OFTRate = FTRate, 
+         O_points = points, 
+         O_west_conference = west_conference, 
+         O_rank = rank,
+         O_win = win
+  )
+
+off_away <- off_away %>%
+  rename(
+    def_team = off_team,
+    Defg = eFG, 
+    DTORatio = TORatio, 
+    D_reb_perc = reb_percentage, 
+    DFTRate = FTRate, 
+    D_west_conference = west_conference, 
+    D_rank = rank, 
+    D_points = points
+  ) %>%
+  select(-off_home, -win)
+
+# merge dataframes
+uniqueid_reg_szn2023 <- off_home %>%
+  full_join(off_away, by = c("nbagameid")) %>%
+  select(-D_points, -O_points)
+
+
+```
+
+```{r}
+corr2 <- uniqueid_reg_szn2023 %>%
+  select(c(-off_team, -def_team))
+cor_matrix_2 <- cor(corr2)
+
+cor_matrix_2[is.na(cor_matrix_2)] <- mean(cor_matrix_2, na.rm = TRUE)
+clust <- hclust(as.dist(1 - cor_matrix_2), method = "ward.D2")
+
+corrplot(cor_matrix_2, method = "circle", type = "upper", order = "hclust", 
+         addCoef.col = "black", tl.col = "black", tl.srt = 45, 
+         number.cex = 0.7)
+
+# view distribution of data
+numeric_columns <- sapply(uniqueid_reg_szn2023, is.numeric)
+
+# set margins
+par(mar = c(2,2,2,2))
+par(mfrow = c(3, 3))  
+for (col in names(uniqueid_reg_szn2023[numeric_columns])) {
+  hist(uniqueid_reg_szn2023[[col]], main = col, xlab = col)
+}
+
+
+# scale data
+# scale data so ranking doesn't skew the results
+uniqueid_reg_szn2023$O_rank <- scales::rescale(uniqueid_reg_szn2023$O_rank)
+uniqueid_reg_szn2023$D_rank <- scales::rescale(uniqueid_reg_szn2023$D_rank)
+```
+
+```{r}
+# split the data into training and testing
+set.seed(2581)
+split_index <- sample(1:nrow(uniqueid_reg_szn2023), 0.7*nrow(uniqueid_reg_szn2023))
+train <- uniqueid_reg_szn2023[split_index, ]
+test <- uniqueid_reg_szn2023[-split_index, ]
+```
+
+```{r}
+# use automl to retrieve a baseline model
+
+#library(h2o)
+h2o.init()
+
+# convert to h2o objects
+train_h2o <- as.h2o(train)
+test_h2o <- as.h2o(test)
+
+target <- "O_win"
+features <- setdiff(names(train), target)
+
+# train h2o model
+model <- h2o.automl(
+  x = features,
+  y = target,
+  training_frame = train_h2o, 
+  max_models = 10,
+  seed = 1
+)
+
+best_model <- model@leader
+lb <- model@leaderboard
+print(lb, n = nrow(lb))
+
+# predict the test set 
+predictions <- h2o.predict(best_model, test_h2o)
+
+# convert predictions to a dataframe
+predictions_df <- as.data.frame(predictions)
+
+# view the predictions
+# print(predictions_df)
+binary_predictions <- ifelse(predictions_df$predict >= 0.5, 1, 0)
+
+h2o.shutdown(prompt = FALSE)
+
+# The best model is StackedEnsemble_AllModels_1_AutoML_1_20240630_123823, and performance has improved significantly since the first model.
+```
+```{r}
+# Calculate accuracy, sensitivity, specificity, precision, recall, and F1
+test_predictions <- test 
+test_predictions$predictions <- binary_predictions
+```
+
+```{r}
+# calculate for accuracy
+test_predictions <- test_predictions %>%
+  mutate(cm = case_when(
+    O_win == 1 & predictions == 1 ~ "TP",
+    O_win == 0 & predictions == 1 ~ "FP", 
+    O_win == 1 & predictions == 0 ~ "FN", 
+    O_win == 0 & predictions == 0 ~ "TN"
+    
+  )
+)
+
+accuracy <- (sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "TN"))/nrow(test_predictions)
+print(paste("Accuracy: ", accuracy))
+
+sensitivity <- (sum(test_predictions$cm == "TP")) / ((sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "FN")))
+print(paste("Sensitivity: ", sensitivity))
+
+specificity <- (sum(test_predictions$cm == "TN")) / (sum(test_predictions$cm == "TN") + sum(test_predictions$cm == "FP"))
+print(paste("Specificity: ", specificity))
+
+precision = sum(test_predictions$cm == "TP") / (sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "FP"))
+print(paste("Precision: ", precision))
+
+recall <- sum(test_predictions$cm == "TP") / (sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "FN"))
+print(paste("Recall: ", recall))
+
+F1 = 2*precision*recall / (precision + recall)
+print(paste("F1: ", F1))
+
+# the performance of the model is a lot better now that there is an opposing team in the dataset
+```
+```{r}
+# check for nba rankings after making predictions
+test_predictions <- test_predictions %>%
+  select(c(-O_win, -cm)) %>%
+  rename(O_win = predictions)
+
+# append training and testing set
+check <- rbind(train, test_predictions)
+
+check_rankings_eastern_O <- check %>%
+  filter(O_west_conference == 0) %>%
+  group_by(off_team) %>%
+  summarise(total_wins = sum(O_win))%>%
+  arrange(desc(total_wins)) 
+  
+check_rankings_eastern_D <- check %>%
+  filter(D_west_conference == 0) %>%  # Filter for Eastern Conference defensive teams
+  group_by(def_team) %>%  # Group by defensive team
+  summarise(total_wins = sum(case_when(
+    O_win == 1 ~ 0,  # If offensive team wins, count as 0
+    O_win == 0 ~ 1   # If offensive team loses, count as 1
+  ))) %>%  # Summarise total wins
+  arrange(desc(total_wins)) 
+  
+# merge offense and defense stats
+rankings_eastern <- merge(
+  check_rankings_eastern_O, 
+  check_rankings_eastern_D, 
+  by.x = "off_team", 
+  by.y = "def_team", all= TRUE) 
+
+rankings_eastern <- rankings_eastern %>%
+  mutate(total_wins = total_wins.x + total_wins.y) %>%
+  select(off_team, total_wins) %>%
+  arrange(desc(total_wins))
+
+check_rankings_eastern <- rankings_eastern %>%
+  mutate(
+    actual_ranking = case_when(
+      off_team %in% c("BOS", "OKC") ~ 1,
+      off_team %in% c("NYK", "DEN") ~ 2,
+      off_team %in% c("MIL", "MIN") ~ 3,
+      off_team %in% c("CLE", "LAC") ~ 4,
+      off_team %in% c("ORL", "DAL") ~ 5,
+      off_team %in% c("IND", "PHX") ~ 6,
+      off_team %in% c("PHI", "NOP") ~ 7,
+      off_team %in% c("MIA", "LAL") ~ 8,
+      off_team %in% c("CHI", "SAC") ~ 9,
+      off_team %in% c("ATL", "GSW") ~ 10,
+      off_team %in% c("BKN", "HOU") ~ 11,
+      off_team %in% c("TOR", "UTA") ~ 12,
+      off_team %in% c("CHA", "MEM") ~ 13,
+      off_team %in% c("WAS", "SAS") ~ 14,
+      off_team %in% c("DET", "POR") ~ 15
+    )
+  )
+
+print(check_rankings_eastern)
+# Eastern rankings have significantly improved, and the rankings that are switched around have total_wins that are pretty close to each other. 
+```
+
+```{r}
+check_rankings_western_O <- check %>%
+  filter(O_west_conference == 1) %>%
+  group_by(off_team) %>%
+  summarise(total_wins = sum(O_win))%>%
+  arrange(desc(total_wins)) 
+  
+check_rankings_western_D <- check %>%
+  filter(D_west_conference == 1) %>%  # Filter for Eastern Conference defensive teams
+  group_by(def_team) %>%  # Group by defensive team
+  summarise(total_wins = sum(case_when(
+    O_win == 1 ~ 0,  # If offensive team wins, count as 0
+    O_win == 0 ~ 1   # If offensive team loses, count as 1
+  ))) %>%  # Summarise total wins
+  arrange(desc(total_wins)) 
+  
+# merge offense and defense stats
+rankings_western <- merge(
+  check_rankings_western_O, 
+  check_rankings_western_D, 
+  by.x = "off_team", 
+  by.y = "def_team", all= TRUE) 
+
+rankings_western<- rankings_western %>%
+  mutate(total_wins = total_wins.x + total_wins.y) %>%
+  select(off_team, total_wins) %>%
+  arrange(desc(total_wins))
+
+check_rankings_western_O <- check %>%
+  filter(O_west_conference == 1) %>%
+  group_by(off_team) %>%
+  summarise(total_wins = sum(O_win))%>%
+  arrange(desc(total_wins)) 
+  
+check_rankings_western_D <- check %>%
+  filter(D_west_conference == 1) %>%  # Filter for Eastern Conference defensive teams
+  group_by(def_team) %>%  # Group by defensive team
+  summarise(total_wins = sum(case_when(
+    O_win == 1 ~ 0,  # If offensive team wins, count as 0
+    O_win == 0 ~ 1   # If offensive team loses, count as 1
+  ))) %>%  # Summarise total wins
+  arrange(desc(total_wins)) 
+  
+# merge offense and defense stats
+rankings_western <- merge(
+  check_rankings_western_O, 
+  check_rankings_western_D, 
+  by.x = "off_team", 
+  by.y = "def_team", all= TRUE) 
+
+rankings_western<- rankings_western %>%
+  mutate(total_wins = total_wins.x + total_wins.y) %>%
+  select(off_team, total_wins) %>%
+  arrange(desc(total_wins))
+
+check_rankings_western  <- rankings_western %>%
+  mutate(
+    actual_ranking = case_when(
+      off_team %in% c("BOS", "OKC") ~ 1,
+      off_team %in% c("NYK", "DEN") ~ 2,
+      off_team %in% c("MIL", "MIN") ~ 3,
+      off_team %in% c("CLE", "LAC") ~ 4,
+      off_team %in% c("ORL", "DAL") ~ 5,
+      off_team %in% c("IND", "PHX") ~ 6,
+      off_team %in% c("PHI", "NOP") ~ 7,
+      off_team %in% c("MIA", "LAL") ~ 8,
+      off_team %in% c("CHI", "SAC") ~ 9,
+      off_team %in% c("ATL", "GSW") ~ 10,
+      off_team %in% c("BKN", "HOU") ~ 11,
+      off_team %in% c("TOR", "UTA") ~ 12,
+      off_team %in% c("CHA", "MEM") ~ 13,
+      off_team %in% c("WAS", "SAS") ~ 14,
+      off_team %in% c("DET", "POR") ~ 15
+    )
+  )
+
+print(check_rankings_western)
+# The western rankings are a lot better, and rankings that are switched around have total_wins that are not super off from it's actual ranking.
+```
+
+```{r}
+# the second model performed better than the first model. We will now add roster data to the model. To reduce the widening of the dataset, I will represent each player on a team by rank, and they will be ranked by the amount of average seconds they play per game. With this representation, I am assuming that players that are generally unrostered don't have one long outlier game where they play a lot once.
+```
+
+```{r}
+
+
+# Part 2: Players impact leading to the playoffs
+# tie the results from part 1 to see which players per team and what features impact the most on the team going to the play offs
+# filter by teams that make the play offs into player_data (gametype = 2)
+
+# using the top 16 teams from the last model, predict probability of wins for each of the play off series, including how many games were played
+
+# for player_data, we are going to sort players by team and the average number of seconds in order. Based on this order, it will be added to the previous modeling dataset as player 1-15 with seconds below it.
+
+player_2023 <- player_data %>%
+  filter(season == 2023 & gametype == 2) %>%
+  group_by(nbapersonid, team) %>%
+  summarise(avg_seconds = sum(seconds) / n(), .groups = 'drop') %>%
+  select(nbapersonid, team, avg_seconds)
+
+ranked_players_2023 <- player_2023 %>%
+  group_by(team) %>%
+  arrange(desc(avg_seconds)) %>%
+  mutate(rank = row_number()) 
+head(ranked_players_2023)
+
+roster_per_game <- player_data %>%
+  filter(season == 2023 & gametype == 2) %>%
+  select(nbagameid, team, nbapersonid, seconds)
+head(roster_per_game)
+
+roster_per_game1 <- roster_per_game %>%
+  # merge with top 15 player to get ranks of each player on the roster
+  full_join(ranked_players_2023, by = c("nbapersonid", "team")) %>%
+  select(nbagameid, nbapersonid, team, seconds, rank)
+head(roster_per_game1)
+  
+roster_per_game_wide<- roster_per_game1 %>%
+  pivot_wider(
+    names_from = rank, 
+    values_from = seconds, 
+    names_prefix = "rank_"
+  ) %>%
+  select(-c(nbapersonid))
+head(roster_per_game_wide)
+
+# roster per game but with unique nbagameid
+roster_per_game_wide_unique <- roster_per_game_wide %>%
+  group_by(nbagameid, team) %>% 
+  summarise(
+    across(starts_with("rank_"), sum, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+head(roster_per_game_wide_unique)
+
+```
+
+```{r}
+# view the number of times 0 appears in each column to determine the cut off of ranks
+zero_counts <- colSums(roster_per_game_wide_unique == 0.0, na.rm = TRUE)
+sorted_zero_counts <- sort(zero_counts, decreasing = TRUE)
+print(sorted_zero_counts)
+
+# rank_1 to rank_11 will be kept, everything else will be dropped because the amount of missing data is incredibly high. Here, I am making the assumption that teams have at least 5 players at all time rostered per game after dropping rank_12 to rank_35
+```
+```{r}
+roster_clean <- select(roster_per_game_wide_unique, nbagameid, team, rank_1, rank_2, rank_3, rank_4, rank_5, rank_6, rank_7, rank_8, rank_9, rank_10, rank_11)
+```
+
+```{r}
+# merge roster_clean with uniqueid_reg_szn2023
+# we need to convert each nbagameid to a unique game id and assign each team to offense or defense
+
+key <- team_data %>%
+  filter(gametype == 2, season == 2023) %>%
+  select(c(nbagameid, off_team, off_home)) %>%
+  rename(team = off_team)
+
+roster_clean <- roster_clean %>%
+  left_join(key, by = c("nbagameid", "team")) %>%
+  select(c(nbagameid, team, rank_1, rank_2, rank_3, rank_4, rank_5, rank_6, rank_7, rank_8, rank_9, rank_10, rank_11, off_home))
+
+roster_clean_O <- roster_clean %>%
+  filter(off_home == 1) %>%
+  rename(
+    off_team = team,
+    O_rank_1 = rank_1,
+    O_rank_2 = rank_2,
+    O_rank_3 = rank_3,
+    O_rank_4 = rank_4,
+    O_rank_5 = rank_5,
+    O_rank_6 = rank_6,
+    O_rank_7 = rank_7,
+    O_rank_8 = rank_8,
+    O_rank_9 = rank_9,
+    O_rank_10 = rank_10,
+    O_rank_11 = rank_11
+  )
+
+
+roster_clean_D <- roster_clean %>%
+  filter(off_home == 0) %>%
+  rename(
+    def_team = team,
+    D_rank_1 = rank_1,
+    D_rank_2 = rank_2,
+    D_rank_3 = rank_3,
+    D_rank_4 = rank_4,
+    D_rank_5 = rank_5,
+    D_rank_6 = rank_6,
+    D_rank_7 = rank_7,
+    D_rank_8 = rank_8,
+    D_rank_9 = rank_9,
+    D_rank_10 = rank_10,
+    D_rank_11 = rank_11
+  ) %>%
+  select(-off_home)
+
+# merge two datasets
+roster_clean_uniqueid <- roster_clean_O %>%
+  left_join(roster_clean_D, by = c("nbagameid"))
+print(roster_clean_uniqueid)
+
+```
+
+```{r}
+# merge uniqueid_reg_szn2023 vs. roster_clean_uniqueid
+model3_clean_df <- roster_clean_uniqueid %>%
+  left_join(uniqueid_reg_szn2023, by = c("nbagameid", "off_team", "off_home", "def_team"))
+head(model3_clean_df)
+# this dataset merges the dataset from model 2, with data from offense and defense per game, as well as their roster
+```
+```{r}
+# view distribution of data
+numeric_columns <- sapply(model3_clean_df, is.numeric)
+
+par(mar = c(2,2,2,2))
+par(mfrow = c(3, 3))  
+for (col in names(model3_clean_df[numeric_columns])) {
+  hist(model3_clean_df[[col]], main = col, xlab = col) 
+}
+
+```
+
+```{r}
+corr3 <- model3_clean_df[numeric_columns]
+
+# Compute the correlation matrix
+cor_matrix_3 <- cor(corr3, use = "complete.obs")
+
+print(cor_matrix_3)
+
+cor_matrix_3[is.na(cor_matrix_3)] <- mean(cor_matrix_3, na.rm = TRUE)
+clust_3 <- hclust(as.dist(1 - cor_matrix_3), method = "ward.D2")
+
+
+par(oma = c(2, 2, 2, 2)) 
+par(mar = c(2, 2, 2, 2))
+
+# Plot the correlation matrix
+corrplot(cor_matrix_3, 
+         method = "circle", 
+         type = "upper", 
+         order = "hclust", 
+         addCoef.col = "black", 
+         tl.col = "black", 
+         tl.srt = 45, 
+         tl.cex = 0.7,  # Text label size
+         number.cex = 0.5,  # Number size
+         cl.cex = 0.7)  # Color legend size
+
+```
+
+
+
+```{r}
+# scale data so ranking doesn't skew the results
+model3_clean_df$O_rank_1 <- scales::rescale(model3_clean_df$O_rank_1)
+model3_clean_df$O_rank_2 <- scales::rescale(model3_clean_df$O_rank_2)
+model3_clean_df$O_rank_3 <- scales::rescale(model3_clean_df$O_rank_3)
+model3_clean_df$O_rank_4 <- scales::rescale(model3_clean_df$O_rank_4)
+model3_clean_df$O_rank_5 <- scales::rescale(model3_clean_df$O_rank_5)
+model3_clean_df$O_rank_6 <- scales::rescale(model3_clean_df$O_rank_6)
+model3_clean_df$O_rank_7 <- scales::rescale(model3_clean_df$O_rank_7)
+model3_clean_df$O_rank_8 <- scales::rescale(model3_clean_df$O_rank_8)
+model3_clean_df$O_rank_9 <- scales::rescale(model3_clean_df$O_rank_9)
+model3_clean_df$O_rank_10 <- scales::rescale(model3_clean_df$O_rank_10)
+model3_clean_df$O_rank_11 <- scales::rescale(model3_clean_df$O_rank_11)
+
+model3_clean_df$D_rank_1 <- scales::rescale(model3_clean_df$D_rank_1)
+model3_clean_df$D_rank_2 <- scales::rescale(model3_clean_df$D_rank_2)
+model3_clean_df$D_rank_3 <- scales::rescale(model3_clean_df$D_rank_3)
+model3_clean_df$D_rank_4 <- scales::rescale(model3_clean_df$D_rank_4)
+model3_clean_df$D_rank_5 <- scales::rescale(model3_clean_df$D_rank_5)
+model3_clean_df$D_rank_6 <- scales::rescale(model3_clean_df$D_rank_6)
+model3_clean_df$D_rank_7 <- scales::rescale(model3_clean_df$D_rank_7)
+model3_clean_df$D_rank_8 <- scales::rescale(model3_clean_df$D_rank_8)
+model3_clean_df$D_rank_9 <- scales::rescale(model3_clean_df$D_rank_9)
+model3_clean_df$D_rank_10 <- scales::rescale(model3_clean_df$D_rank_10)
+model3_clean_df$D_rank_11 <- scales::rescale(model3_clean_df$D_rank_11)
+
+print(model3_clean_df)
+```
+
+```{r}
+# split the data into training and testing
+set.seed(2581)
+split_index <- sample(1:nrow(model3_clean_df), 0.7*nrow(model3_clean_df))
+train <- model3_clean_df[split_index, ]
+test <- model3_clean_df[-split_index, ]
+```
+
+```{r}
+# use automl to retrieve a baseline model
+
+library(h2o)
+h2o.init()
+
+# convert to h2o objects
+train_h2o <- as.h2o(train)
+test_h2o <- as.h2o(test)
+
+target <- "O_win"
+features <- setdiff(names(train), target)
+
+# train h2o model
+model <- h2o.automl(
+  x = features,
+  y = target,
+  training_frame = train_h2o, 
+  max_models = 10,
+  seed = 1
+)
+
+best_model <- model@leader
+lb <- model@leaderboard
+print(lb, n = nrow(lb))
+
+# predict the test set 
+predictions <- h2o.predict(best_model, test_h2o)
+
+# convert predictions to a dataframe
+predictions_df <- as.data.frame(predictions)
+
+# view the predictions
+# print(predictions_df)
+binary_predictions <- ifelse(predictions_df$predict >= 0.5, 1, 0)
+
+
+
+# The best model with the roster is the StackedEnsemble_AllModels_1_AutoML_2_20240630_131132. The performance metrics have imrproved a little. 
+```
+```{r}
+test_predictions <- test 
+test_predictions$predictions <- binary_predictions
+```
+
+```{r}
+# calculate for accuracy
+test_predictions <- test_predictions %>%
+  mutate(cm = case_when(
+    O_win == 1 & predictions  == 1 ~ "TP",
+    O_win == 0 & predictions == 1 ~ "FP", 
+    O_win == 1 & predictions == 0 ~ "FN", 
+    O_win == 0 & predictions == 0 ~ "TN"
+    
+  )
+)
+
+accuracy <- (sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "TN"))/nrow(test_predictions)
+print(paste("Accuracy: ", accuracy))
+
+sensitivity <- (sum(test_predictions$cm == "TP")) / ((sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "FN")))
+print(paste("Sensitivity: ", sensitivity))
+
+specificity <- (sum(test_predictions$cm == "TN")) / (sum(test_predictions$cm == "TN") + sum(test_predictions$cm == "FP"))
+print(paste("Specificity: ", specificity))
+
+precision = sum(test_predictions$cm == "TP") / (sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "FP"))
+print(paste("Precision: ", precision))
+
+recall <- sum(test_predictions$cm == "TP") / (sum(test_predictions$cm == "TP") + sum(test_predictions$cm == "FN"))
+print(paste("Recall: ", recall))
+
+F1 = 2*precision*recall / (precision + recall)
+print(paste("F1: ", F1))
+
+# The performance metrics of this model is a little better than model 2, but it includes roster information, so we will use this data. 
+```
+
+```{r}
+# check for nba rankings after making predictions
+test_predictions <- test_predictions %>%
+  select(c(-O_win, -cm)) %>%
+  rename(O_win = predictions)
+
+# append training and testing set
+check <- rbind(train, test_predictions)
+```
+
+```{r}
+# check nba rankings
+
+check_rankings_eastern_O <- check %>%
+  filter(O_west_conference == 0) %>%
+  group_by(off_team) %>%
+  summarise(total_wins = sum(O_win))%>%
+  arrange(desc(total_wins)) 
+  
+check_rankings_eastern_D <- check %>%
+  filter(D_west_conference == 0) %>%  # Filter for Eastern Conference defensive teams
+  group_by(def_team) %>%  # Group by defensive team
+  summarise(total_wins = sum(case_when(
+    O_win == 1 ~ 0,  # If offensive team wins, count as 0
+    O_win == 0 ~ 1   # If offensive team loses, count as 1
+  ))) %>%  # Summarise total wins
+  arrange(desc(total_wins)) 
+  
+# merge offense and defense stats
+rankings_eastern <- merge(
+  check_rankings_eastern_O, 
+  check_rankings_eastern_D, 
+  by.x = "off_team", 
+  by.y = "def_team", all= TRUE) 
+
+rankings_eastern <- rankings_eastern %>%
+  mutate(total_wins = total_wins.x + total_wins.y) %>%
+  select(off_team, total_wins) %>%
+  arrange(desc(total_wins))
+
+check_rankings_eastern <- rankings_eastern %>%
+  mutate(
+    actual_ranking = case_when(
+      off_team %in% c("BOS", "OKC") ~ 1,
+      off_team %in% c("NYK", "DEN") ~ 2,
+      off_team %in% c("MIL", "MIN") ~ 3,
+      off_team %in% c("CLE", "LAC") ~ 4,
+      off_team %in% c("ORL", "DAL") ~ 5,
+      off_team %in% c("IND", "PHX") ~ 6,
+      off_team %in% c("PHI", "NOP") ~ 7,
+      off_team %in% c("MIA", "LAL") ~ 8,
+      off_team %in% c("CHI", "SAC") ~ 9,
+      off_team %in% c("ATL", "GSW") ~ 10,
+      off_team %in% c("BKN", "HOU") ~ 11,
+      off_team %in% c("TOR", "UTA") ~ 12,
+      off_team %in% c("CHA", "MEM") ~ 13,
+      off_team %in% c("WAS", "SAS") ~ 14,
+      off_team %in% c("DET", "POR") ~ 15
+    )
+  )
+print(check_rankings_eastern)
+
+# With this model the eastern rankings are completely correct.
+```
+
+```{r}
+check_rankings_western_O <- check %>%
+  filter(O_west_conference == 1) %>%
+  group_by(off_team) %>%
+  summarise(total_wins = sum(O_win))%>%
+  arrange(desc(total_wins)) 
+  
+check_rankings_western_D <- check %>%
+  filter(D_west_conference == 1) %>%  # Filter for Eastern Conference defensive teams
+  group_by(def_team) %>%  # Group by defensive team
+  summarise(total_wins = sum(case_when(
+    O_win == 1 ~ 0,  # If offensive team wins, count as 0
+    O_win == 0 ~ 1   # If offensive team loses, count as 1
+  ))) %>%  # Summarise total wins
+  arrange(desc(total_wins)) 
+  
+# merge offense and defense stats
+rankings_western <- merge(
+  check_rankings_western_O, 
+  check_rankings_western_D, 
+  by.x = "off_team", 
+  by.y = "def_team", all= TRUE) 
+
+rankings_western<- rankings_western %>%
+  mutate(total_wins = total_wins.x + total_wins.y) %>%
+  select(off_team, total_wins) %>%
+  arrange(desc(total_wins))
+
+check_rankings_western_O <- check %>%
+  filter(O_west_conference == 1) %>%
+  group_by(off_team) %>%
+  summarise(total_wins = sum(O_win))%>%
+  arrange(desc(total_wins)) 
+  
+check_rankings_western_D <- check %>%
+  filter(D_west_conference == 1) %>%  # Filter for Eastern Conference defensive teams
+  group_by(def_team) %>%  # Group by defensive team
+  summarise(total_wins = sum(case_when(
+    O_win == 1 ~ 0,  # If offensive team wins, count as 0
+    O_win == 0 ~ 1   # If offensive team loses, count as 1
+  ))) %>%  # Summarise total wins
+  arrange(desc(total_wins)) 
+  
+# merge offense and defense stats
+rankings_western <- merge(
+  check_rankings_western_O, 
+  check_rankings_western_D, 
+  by.x = "off_team", 
+  by.y = "def_team", all= TRUE) 
+
+rankings_western<- rankings_western %>%
+  mutate(total_wins = total_wins.x + total_wins.y) %>%
+  select(off_team, total_wins) %>%
+  arrange(desc(total_wins))
+
+check_rankings_western  <- rankings_western %>%
+  mutate(
+    actual_ranking = case_when(
+      off_team %in% c("BOS", "OKC") ~ 1,
+      off_team %in% c("NYK", "DEN") ~ 2,
+      off_team %in% c("MIL", "MIN") ~ 3,
+      off_team %in% c("CLE", "LAC") ~ 4,
+      off_team %in% c("ORL", "DAL") ~ 5,
+      off_team %in% c("IND", "PHX") ~ 6,
+      off_team %in% c("PHI", "NOP") ~ 7,
+      off_team %in% c("MIA", "LAL") ~ 8,
+      off_team %in% c("CHI", "SAC") ~ 9,
+      off_team %in% c("ATL", "GSW") ~ 10,
+      off_team %in% c("BKN", "HOU") ~ 11,
+      off_team %in% c("TOR", "UTA") ~ 12,
+      off_team %in% c("CHA", "MEM") ~ 13,
+      off_team %in% c("WAS", "SAS") ~ 14,
+      off_team %in% c("DET", "POR") ~ 15
+    )
+  )
+
+print(check_rankings_western)
+# With this model, rankings 6, 7, 9 and 10 are off, but the total_wins isn't that far off the rankings. 
+# The model was able to 100% rank the eastern conference well, but the western conference still has some varying issues with ranking. However, the number of wins is close enough to move onto the next step. 
+```
+
+
+```{r}
+# At this moment, I've run out of time to learn how to create a synthetic dataset in R, so uniqueid_reg_szn2023 will be edited in excel to create one. This will be done by subsetting each team by offense and defense, and randomly selecting rows and combining them for stats. This dataset is making the assumption that O_win is actually a win without the points included in the actual dataset. 
+library(openxlsx)
+write.xlsx(model3_clean_df, "/Users/linanguyen/Desktop/OKC/model3.xlsx", rowNames = FALSE)
+playoffs_round1 <- read_csv("/Users/linanguyen/Desktop/OKC/Generated Data/round1.csv")
+  
+```
+
+```{r}
+# use automl to retrieve a baseline model
+
+# library(h2o)
+# h2o.init()
+
+# convert to h2o objects
+train_h2o <- as.h2o(model3_clean_df)
+test_h2o <- as.h2o(playoffs_round1)
+
+#target <- "O_win"
+#features <- setdiff(names(train), target)
+
+# train h2o model
+#model <- h2o.automl(
+#  x = features,
+#  y = target,
+#  training_frame = train_h2o, 
+#  max_models = 10,
+#  seed = 1
+#)
+
+#best_model <- model@leader
+#lb <- model@leaderboard
+#print(lb, n = nrow(lb))
+
+# predict the test set 
+predictions <- h2o.predict(best_model, test_h2o)
+
+# convert predictions to a dataframe
+predictions_df <- as.data.frame(predictions)
+
+# view the predictions
+# print(predictions_df)
+binary_predictions <- ifelse(predictions_df$predict >= 0.5, 1, 0)
+
+# h2o.shutdown(prompt = FALSE)
+```
+
+```{r}
+playoffs_round1$predictions <- binary_predictions
+playoffs_round1$chances <- predictions_df
+```
+
+![Eastern Conference Round 1](/Users/linanguyen/Desktop/OKC/Figures/EasternConferenceRound1.png)
+![Western Conference Round 1](/Users/linanguyen/Desktop/OKC/Figures/WesternConferenceRound1.png)
+```{r}
+# Besides the amount of wins and losses being off, Pheonix has made it to round 2 of play offs even though this doesn't happen in the 2024 finals. 
+```
+
+```{r}
+# round 2
+# making a new synthetic dataset
+playoffs_round2 <- read_csv("/Users/linanguyen/Desktop/OKC/Generated Data/round2.csv")
+```
+
+```{r}
+# use automl to retrieve a baseline model
+
+#library(h2o)
+#h2o.init()
+
+# convert to h2o objects
+train_h2o <- as.h2o(model3_clean_df)
+test_h2o <- as.h2o(playoffs_round2)
+
+#target <- "O_win"
+#features <- setdiff(names(train), target)
+
+# train h2o model
+#model <- h2o.automl(
+#  x = features,
+#  y = target,
+#  training_frame = train_h2o, 
+#  max_models = 10,
+#  seed = 1
+#)
+
+#best_model <- model@leader
+#lb <- model@leaderboard
+#print(lb, n = nrow(lb))
+
+# predict the test set 
+predictions <- h2o.predict(best_model, test_h2o)
+
+# convert predictions to a dataframe
+predictions_df <- as.data.frame(predictions)
+
+# view the predictions
+# print(predictions_df)
+binary_predictions <- ifelse(predictions_df$predict >= 0.5, 1, 0)
+
+# h2o.shutdown(prompt = FALSE)
+```
+```{r}
+playoffs_round2$predictions <- binary_predictions
+playoffs_round2$chances <- predictions_df
+```
+
+![Eastern Conference Round 2](/Users/linanguyen/Desktop/OKC/Figures/EasternConferenceRound2.png)
+![Western Conference Round 2](/Users/linanguyen/Desktop/OKC/Figures/WesternConferenceRound2.png)
+```{r}
+# conference finals
+# making a new synthetic dataset
+playoffs_round3 <- read_csv("/Users/linanguyen/Desktop/OKC/Generated Data/Round3.csv")
+```
+
+```{r}
+# use automl to retrieve a baseline model
+
+#library(h2o)
+#h2o.init()
+
+# convert to h2o objects
+train_h2o <- as.h2o(model3_clean_df)
+test_h2o <- as.h2o(playoffs_round3)
+
+#target <- "O_win"
+#features <- setdiff(names(train), target)
+
+# train h2o model
+#model <- h2o.automl(
+#  x = features,
+#  y = target,
+#  training_frame = train_h2o, 
+#  max_models = 10,
+#  seed = 1
+#)
+
+#best_model <- model@leader
+#lb <- model@leaderboard
+#print(lb, n = nrow(lb))
+
+# predict the test set 
+predictions <- h2o.predict(best_model, test_h2o)
+
+# convert predictions to a dataframe
+predictions_df <- as.data.frame(predictions)
+
+# view the predictions
+# print(predictions_df)
+binary_predictions <- ifelse(predictions_df$predict >= 0.5, 1, 0)
+
+#h2o.shutdown(prompt = FALSE)
+
+```
+
+```{r}
+playoffs_round3$predictions <- binary_predictions
+playoffs_round3$chances <- predictions_df
+```
+
+![Conference Finals](/Users/linanguyen/Desktop/OKC/Figures/ConferenceFinals.png)
+
+```{r}
+# nba finals
+# making a new synthetic dataset
+playoffs_round4 <- read_csv("/Users/linanguyen/Desktop/OKC/Generated Data/Round4.csv")
+```
+```{r}
+# use automl to retrieve a baseline model
+
+#library(h2o)
+#h2o.init()
+
+# convert to h2o objects
+train_h2o <- as.h2o(model3_clean_df)
+test_h2o <- as.h2o(playoffs_round4)
+
+#target <- "O_win"
+#features <- setdiff(names(train), target)
+
+# train h2o model
+#model <- h2o.automl(
+#  x = features,
+#  y = target,
+#  training_frame = train_h2o, 
+#  max_models = 10,
+#  seed = 1
+#)
+
+#best_model <- model@leader
+#lb <- model@leaderboard
+#print(lb, n = nrow(lb))
+
+# predict the test set 
+predictions <- h2o.predict(best_model, test_h2o)
+
+# convert predictions to a dataframe
+predictions_df <- as.data.frame(predictions)
+
+# view the predictions
+# print(predictions_df)
+binary_predictions <- ifelse(predictions_df$predict >= 0.5, 1, 0)
+
+h2o.shutdown(prompt = FALSE)
+
+```
+```{r}
+playoffs_round4$predictions <- binary_predictions
+playoffs_round4$chances <- predictions_df
+```
+
+![NBA Finals](/Users/linanguyen/Desktop/OKC/Figures/NBAFinals.png)
+<span style="color:red">**ANSWER :**</span>    
+
+```{r}
+# The model used to predict the NBA play offs is a stacked ensemble model, which combines many different base models like linear regression, decision trees, random forests, etc., individually trained to be stacked into the final model. The model performed well with the data provided, but did relatively okay with my synthetic data. The synthetic data was created by selecting random rows of offensive team data and stats and combining with other random rows of defensive team data and stats for each match-up during the play offs. Since these stats aren't truely reflective of how both teams perform playing against each other, the model seemed to predict more at 50:50, rather than being able to determine if a team will sweep another team like the play offs. 
+# If I had more time, I would go back and figure out how to create trained synthetic data that is more reflective of team stats when they are playing each other. I would also create the bracket visualization directly into R, rather than uploading a .png of the brackets. I would also like to research if I could create individual models for each team, or even have clusters for rosters instead of having a ranking system for the top 11 most played players on the team. I would also go back and print the most important features that play a role in the model to aid with decision making on the field. 
+```
+
+```{r}
+# Findings
+# Boston Celtics had bad luck in the 2022 and 2023 nba finals, but were successful in their regular season. In the model, they were still unsuccessful for the 2024 nba finals.
+# Phoenix Suns in were successful in their conference in 2020 and 2021 regular season, but were unsuccessful in the nba finals. In my model and in the real nba play offs, they lost in the first round this year.
+```
+
+
+
+
+
